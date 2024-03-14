@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["modules/cli", "modules/scanner", "modules/signatures", "modules/common"]
+default-members = ["modules/cli", "modules/scanner"]
+
+[profile.release]
+debug = true
