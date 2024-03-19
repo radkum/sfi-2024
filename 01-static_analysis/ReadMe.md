@@ -13,7 +13,7 @@ TODO Description
 ###### cargo run -- evaluate --help
 
 ##### OTHER
-###### cargo run -- signature compile -d signatures -o malset.sset
+###### cargo run -- signature compile --dir signatures -o malset.sset
 ###### cargo run -- signature unpack -s malset.sset -o unpacked_sigs
 ###### cargo run -- signature compile-raw -d maldir -o raw.sset
 

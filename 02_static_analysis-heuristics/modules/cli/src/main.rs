@@ -24,7 +24,7 @@ pub struct Compile {
     #[clap(short = 'i')]
     heuristic_set: bool,
     /// Signature directory
-    #[clap(short, long)]
+    #[clap(long)]
     dir: String,
     /// Output name/path of sigset. Extenstion should be "sset"
     #[clap(short, long)]

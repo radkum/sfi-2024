@@ -11,8 +11,8 @@ TODO Description
 ###### cargo run -- evaluate --help
 
 ##### OTHER
-###### cargo run -- signature compile -s -d signatures\sha -o malset.sset
-###### cargo run -- signature compile -i -d signatures\heur -o malset.hset
+###### cargo run -- signature compile -s --dir signatures\sha -o malset.sset
+###### cargo run -- signature compile -i --dir signatures\heur -o malset.hset
 ###### cargo run -- signature unpack -s malset.sset -o unpacked_sigs
 
 ###### cargo run -- evaluate -s malset.sset maldir

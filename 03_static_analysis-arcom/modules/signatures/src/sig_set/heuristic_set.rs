@@ -69,11 +69,14 @@ impl HeurSet {
 
         //some signatures are matched. Take first signature matched
         //todo: add to signatures Priority field in future
+        log::trace!("shared_imports {}", shared_imports);
         log::trace!("matched {} sigs", shared_imports.count_ones());
         let first_matched_sig_bit = shared_imports.trailing_zeros();
 
         //convert from bit position to sig id
-        let matched_sig = 1u32 >> first_matched_sig_bit;
+        let matched_sig = (1u32 << first_matched_sig_bit) - 1;
+        //log::trace!("matched. Sig Id: {}", matched_sig);
+        //log::trace!("{:?}", self.sig_id_to_description);
 
         let properties: SigHeur = serde_yaml::from_str(&self.sig_id_to_description[&matched_sig])?;
         return Ok(Some(properties));

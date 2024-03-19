@@ -18,7 +18,7 @@ pub struct CompileRaw {
 #[derive(clap::Args)]
 pub struct Compile {
     /// Signature directory
-    #[clap(short, long)]
+    #[clap(long)]
     dir: String,
     /// Output name/path of sigset. Extenstion should be "sset"
     #[clap(short, long)]
