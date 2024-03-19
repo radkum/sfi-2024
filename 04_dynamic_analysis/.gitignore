@@ -1,0 +1,7 @@
+/target
+.idea
+Cargo.lock
+maldir
+malset.sset
+malset.hset
+malset.dset
