@@ -14,5 +14,5 @@ log = "~0"
 object = "0.33.0"
 serde = { version = "~1", features = ["derive"] }
 serde_yaml = "~0"
-sha3 = "~0"
+sha2 = "~0"
 thiserror = "~1"

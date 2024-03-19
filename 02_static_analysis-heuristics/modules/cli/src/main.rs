@@ -107,11 +107,11 @@ pub fn main() -> anyhow::Result<()> {
                 let ser = match set_type {
                     SetType::Sha => {
                         let set = ShaSet::from_signatures(args.dir.as_str())?;
-                        set.to_sig_set()
+                        set.to_set_serializer()
                     },
                     SetType::Heur => {
                         let set = HeurSet::from_signatures(args.dir.as_str())?;
-                        set.to_sig_set()
+                        set.to_set_serializer()
                     },
                 };
 
@@ -145,7 +145,7 @@ pub fn main() -> anyhow::Result<()> {
             },
             SignatureCommand::CompileRaw(args) => {
                 let sha_set = ShaSet::from_dir(args.dir.as_str())?;
-                let ser = sha_set.to_sig_set();
+                let ser = sha_set.to_set_serializer();
                 ser.serialize(&args.out_path, ShaSet::SET_MAGIC_U32)?;
             },
         },

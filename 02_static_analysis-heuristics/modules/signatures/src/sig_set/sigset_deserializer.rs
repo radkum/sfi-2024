@@ -2,24 +2,24 @@ use crate::{
     sha256_utils,
     sha256_utils::Sha256,
     sig_set::{
-        heuristic_set::HeurSet, sha_set::ShaSet, signature::SigHeur, HeurSigHeader,
-        SerializedSetHeader, ShaSigHeader, SigHeader, SigSet,
+        heuristic_set::HeurSet, sha_set::ShaSet, signature::SigHeur, HeurSigHeader, SetHeader,
+        ShaSigHeader, SigHeader, SigSet,
     },
     SigSetError,
 };
-use sha3::Digest;
+use sha2::Digest;
 use std::{io::Read, mem::size_of};
 
 #[derive(Debug)]
 pub(crate) struct SigSetDeserializer {
-    ser_set_header: SerializedSetHeader,
+    ser_set_header: SetHeader,
     data: Vec<u8>,
 }
 
 impl SigSetDeserializer {
     const MAX_BUF_LEN: u64 = 0x400000;
     // 4 MB
-    const HEADER_SIZE: usize = size_of::<SerializedSetHeader>();
+    const HEADER_SIZE: usize = size_of::<SetHeader>();
 
     pub fn new(name: &str) -> Result<Self, SigSetError> {
         let mut file = std::fs::File::open(name)?;
@@ -43,7 +43,7 @@ impl SigSetDeserializer {
                 size: data.len() as u64,
             });
         }
-        let set_header: SerializedSetHeader = bincode::serde::decode_from_slice(
+        let set_header: SetHeader = bincode::serde::decode_from_slice(
             &data[..Self::HEADER_SIZE],
             bincode::config::legacy(),
         )?
@@ -62,7 +62,7 @@ impl SigSetDeserializer {
     }
 
     fn verify_checksum(&self) -> Result<(), SigSetError> {
-        let mut hasher = sha3::Sha3_256::new();
+        let mut hasher = sha2::Sha256::new();
         hasher.update(&self.ser_set_header.elem_count.to_le_bytes());
         hasher.update(&self.data);
         let mut checksum_buf = Sha256::default();

@@ -3,7 +3,7 @@ use crate::{
     sig_set::{SetHeader, SigHeader, SigId},
     ShaSet, SigSetError,
 };
-use sha3::Digest;
+use sha2::Digest;
 use std::io::Write;
 
 pub struct SigSetSerializer {
@@ -68,7 +68,7 @@ impl SigSetSerializer {
     }
 
     fn calculate_checksum(&self) -> Result<Sha256, SigSetError> {
-        let mut hasher = sha3::Sha3_256::new();
+        let mut hasher = sha2::Sha256::new();
 
         hasher.update(&(self.sig_headers_vec.len() as u32).to_le_bytes());
 

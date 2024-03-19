@@ -17,13 +17,13 @@ use serde::Serialize;
 pub(crate) type Description = String;
 
 #[derive(Debug, Serialize, Deserialize)]
-struct SerializedSetHeader {
+struct SetHeader {
     magic: u32,
     checksum: Sha256,
     elem_count: u32,
 }
 
-impl SerializedSetHeader {
+impl SetHeader {
     const MAGIC_LIST: [u32; 2] = [ShaSet::SET_MAGIC_U32, HeurSet::SET_MAGIC_U32];
     fn verify_magic(&self) -> Result<(), SigSetError> {
         if !Self::MAGIC_LIST.contains(&self.magic) {
@@ -87,5 +87,5 @@ pub trait SigSet {
     where
         Self: Sized;
 
-    fn to_sig_set(&self) -> SigSetSerializer;
+    fn to_set_serializer(&self) -> SigSetSerializer;
 }

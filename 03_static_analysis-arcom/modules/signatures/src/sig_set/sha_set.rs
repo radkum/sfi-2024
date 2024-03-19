@@ -56,7 +56,7 @@ impl ShaSet {
             }
         }
 
-        log::info!("mset size: {}", sha_set.sha_list.len());
+        log::info!("shaset size: {}", sha_set.sha_list.len());
         Ok(sha_set)
     }
 
@@ -134,7 +134,7 @@ impl SigSet for ShaSet {
         Ok(sha_set)
     }
 
-    fn to_sig_set(&self) -> SigSetSerializer {
+    fn to_set_serializer(&self) -> SigSetSerializer {
         let mut ser = SigSetSerializer::new_empty();
         let sorted_map: BTreeMap<Sha256, Description> =
             self.sha_to_description.clone().into_iter().collect();

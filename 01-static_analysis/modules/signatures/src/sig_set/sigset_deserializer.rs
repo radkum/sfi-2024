@@ -3,7 +3,7 @@ use crate::{
     sig_set::{sha_set::ShaSet, SetHeader, SigHeader},
     SigSetError,
 };
-use sha3::Digest;
+use sha2::Digest;
 use std::{io::Read, mem::size_of};
 
 #[derive(Debug)]
@@ -60,7 +60,7 @@ impl SigSetDeserializer {
     }
 
     fn verify_checksum(&self) -> Result<(), SigSetError> {
-        let mut hasher = sha3::Sha3_256::new();
+        let mut hasher = sha2::Sha256::new();
         hasher.update(&self.ser_set_header.elem_count.to_le_bytes());
         hasher.update(&self.data);
         let mut checksum_buf = Sha256::default();

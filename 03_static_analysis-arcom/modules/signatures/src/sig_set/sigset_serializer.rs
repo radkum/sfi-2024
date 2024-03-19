@@ -1,9 +1,9 @@
 use crate::{
     sha256_utils::Sha256,
-    sig_set::{SerializedSetHeader, SigHeader, SigId},
+    sig_set::{SetHeader, SigHeader, SigId},
     SigSetError,
 };
-use sha3::Digest;
+use sha2::Digest;
 use std::io::Write;
 
 pub struct SigSetSerializer {
@@ -48,13 +48,13 @@ impl SigSetSerializer {
         let mut checksum_buf = Sha256::default();
         checksum_buf.copy_from_slice(&self.calculate_checksum()?);
 
-        let mset_header = SerializedSetHeader {
+        let set_header = SetHeader {
             magic,
             checksum: checksum_buf,
             elem_count: self.sig_headers_vec.len() as u32,
         };
 
-        let header = bincode::serde::encode_to_vec(&mset_header, bincode::config::legacy())?;
+        let header = bincode::serde::encode_to_vec(&set_header, bincode::config::legacy())?;
         file.write_all(&header)?;
 
         //write info about each sig
@@ -69,7 +69,7 @@ impl SigSetSerializer {
     }
 
     fn calculate_checksum(&self) -> Result<Sha256, SigSetError> {
-        let mut hasher = sha3::Sha3_256::new();
+        let mut hasher = sha2::Sha256::new();
 
         hasher.update(&(self.sig_headers_vec.len() as u32).to_le_bytes());
 
