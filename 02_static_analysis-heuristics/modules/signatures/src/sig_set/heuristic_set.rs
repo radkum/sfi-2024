@@ -89,6 +89,10 @@ impl HeurSet {
 
         shared_imports = !shared_imports;
 
+		if shared_imports == 0 {
+            // no match
+            return Ok(None)
+        }
         //some signatures are matched. Take first signature matched
         //todo: add to signatures Priority field in future
         log::trace!("matched {} sigs", shared_imports.count_ones());
