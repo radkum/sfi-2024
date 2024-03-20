@@ -1,5 +1,5 @@
-use signatures::sig_set::dynamic_set::DynSet;
 use crate::error::ScanError;
+use signatures::sig_set::dynamic_set::DynSet;
 
 pub fn eval_api_calls(calls: Vec<String>, signatures: DynSet) -> Result<(), ScanError> {
     if let Some(detection_info) = signatures.eval_api_calls(calls)? {

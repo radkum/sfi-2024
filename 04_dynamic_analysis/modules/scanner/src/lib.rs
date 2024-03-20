@@ -1,12 +1,9 @@
-pub(crate) mod error;
-pub(crate) mod scan;
-pub mod ffi;
 mod api_calls;
+pub(crate) mod error;
+pub mod ffi;
+pub(crate) mod scan;
 
-pub use ffi::scan_file;
-pub use ffi::scan_dir;
-pub use ffi::scan_path;
-pub use ffi::scan_api_calls;
+pub use ffi::{scan_api_calls, scan_dir, scan_file, scan_path};
 
 #[cfg(test)]
 mod tests {

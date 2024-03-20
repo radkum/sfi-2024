@@ -1,13 +1,13 @@
-use crate::{DynSet, sha256_utils::Sha256, SigSetError};
+use crate::{sha256_utils::Sha256, DynSet, SigSetError};
 use common::redr;
 use serde::Deserialize;
 
+pub mod dynamic_set;
 pub mod heuristic_set;
 pub mod sha_set;
 mod signature;
 pub mod sigset_deserializer;
 pub mod sigset_serializer;
-pub mod dynamic_set;
 
 use crate::sig_set::{
     heuristic_set::HeurSet, sha_set::ShaSet, sigset_serializer::SigSetSerializer,
@@ -18,14 +18,18 @@ use serde::Serialize;
 pub(crate) type Description = String;
 
 #[derive(Debug, Serialize, Deserialize)]
-struct SerializedSetHeader {
+struct SetHeader {
     magic: u32,
     checksum: Sha256,
     elem_count: u32,
 }
 
-impl SerializedSetHeader {
-    const MAGIC_LIST: [u32; 3] = [ShaSet::SET_MAGIC_U32, HeurSet::SET_MAGIC_U32, DynSet::SET_MAGIC_U32];
+impl SetHeader {
+    const MAGIC_LIST: [u32; 3] = [
+        ShaSet::SET_MAGIC_U32,
+        HeurSet::SET_MAGIC_U32,
+        DynSet::SET_MAGIC_U32,
+    ];
     fn verify_magic(&self) -> Result<(), SigSetError> {
         if !Self::MAGIC_LIST.contains(&self.magic) {
             return Err(SigSetError::IncorrectMagicError {

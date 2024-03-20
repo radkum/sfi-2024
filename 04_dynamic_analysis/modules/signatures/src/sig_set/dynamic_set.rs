@@ -1,9 +1,7 @@
 use crate::{
     sha256_utils,
-    sha256_utils::{Sha256},
-    sig_set::{
-        signature::SigDyn, sigset_serializer::SigSetSerializer, Description, SigId, SigSet,
-    },
+    sha256_utils::{sha256_from_vec, Sha256},
+    sig_set::{signature::SigDyn, sigset_serializer::SigSetSerializer, Description, SigId, SigSet},
     SigSetError,
 };
 use common::{detection::DetectionReport, redr};
@@ -11,7 +9,6 @@ use std::{
     collections::{BTreeMap, HashMap},
     io::{Read, Seek, SeekFrom},
 };
-use crate::sha256_utils::sha256_from_vec;
 
 type DynSigId = u32;
 type ImportInSigs = u32;
@@ -44,36 +41,61 @@ impl DynSet {
         //--------------ALGORITHM------------------
         // matching sha_vec with each signature has very low efficacy. There is better way
         // imports_in_sig field tell as which signatures has particular import. For example:
-        // lets assume, "kernel32+sleep" after converted to sha belongs to "self.imports" on
+        //
+        // 1) lets assume, "kernel32+sleep" after converted to sha belongs to "self.imports" on
         // first (zero index) position. Then if "kernel32+sleep" import appears in signatures
         // with id's 2,3,7,11, then first (zero index) value in "self.imports_to_sig" is
         // 1094, 0x446, 0b010001000110, because we fill "2,3,7,11" bits
-        log::trace!("{:?}", self.sha_to_import_index.values());
-        let mut shared_imports = u32::MAX;
+        //
+        // 2) next step is iterate by each import and if import exists in "imports_in_sig", then
+        // clear value for import_id
+        //
+        // 3) then if some bit is 0 in each "imports_in_sig" value, then we found our matched signature
+        // because each "import" hit clear for us one entry.
+        // 4) How to find out each "sig" is hit? perform in loop bitwise or on each "import_to_sig"
+        // then negate result, and then we know which sig is hit
+
+        //todo: add algorithm example step by step
+
+        let sig_count = self.sig_id_to_imports.len();
+        log::trace!("{:?}", self.imports_in_sig);
+        let mut imports_in_sig = self.imports_in_sig.clone();
         for sha256 in sha_vec {
             let Some(import_id) = self.sha_to_import_index.get(sha256) else {
                 continue;
             };
             log::debug!(
-                "self.imports_in_sig[*import_id as usize]: {}",
+                "self.imports_in_sig[*import_id as usize]: {:08b}",
                 self.imports_in_sig[*import_id as usize]
             );
-            log::debug!("shared_imports: {}", shared_imports);
+            // if some imports hit, then we remove it from array. At the end it tell us in which
+            // signature all imports were hit
 
-            shared_imports &= self.imports_in_sig[*import_id as usize];
+            imports_in_sig[*import_id as usize] = 0;
         }
+
+        // we need calculate mask. If we have 5 signatures, then mask should be
+        // 0x11111111111111111111111111100000, 5 first bits empty. So to get this in first step we get:
+        // 0x00000000000000000000000000011111 and then negate it
+        let mut shared_imports: u32 = (1 << sig_count) - 1;
+        shared_imports = !shared_imports;
+
+        for ids in imports_in_sig {
+            shared_imports |= ids;
+        }
+
+        shared_imports = !shared_imports;
 
         if shared_imports == 0 {
+            // no match
             return Ok(None);
         }
-
         //some signatures are matched. Take first signature matched
         //todo: add to signatures Priority field in future
         log::trace!("matched {} sigs", shared_imports.count_ones());
-        let first_matched_sig_bit = shared_imports.trailing_zeros();
 
-        //convert from bit position to sig id
-        let matched_sig = 1u32 >> first_matched_sig_bit;
+        let matched_sig = shared_imports.trailing_zeros();
+        log::trace!("matched_sig {} id", matched_sig);
 
         let properties: SigDyn = serde_yaml::from_str(&self.sig_id_to_description[&matched_sig])?;
         return Ok(Some(properties));
@@ -104,10 +126,9 @@ impl DynSet {
     }
 
     pub fn eval_api_calls(
-          &self,
-          calls: Vec<String>,
+        &self,
+        calls: Vec<String>,
     ) -> Result<Option<DetectionReport>, SigSetError> {
-
         let api_calls_res = parse_api_calls(calls);
         //let api_calls_res = get_calls(variant.get_origin_file().borrow().path.as_path());
         if let Err(e) = api_calls_res {
@@ -123,13 +144,9 @@ impl DynSet {
 }
 
 fn parse_api_calls(imports: Vec<String>) -> Result<Vec<Sha256>, SigSetError> {
-
     fn api_call_to_sha(call: &String) -> Result<Sha256, SigSetError> {
         #[cfg(debug_assertions)]
-        log::debug!(
-            "call: \"{}\"",
-            call,
-        );
+        log::debug!("call: \"{}\"", call,);
 
         Ok(sha256_from_vec(call.clone().into_bytes())?)
     }

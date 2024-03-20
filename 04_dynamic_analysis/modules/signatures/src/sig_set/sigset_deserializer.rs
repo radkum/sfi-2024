@@ -1,22 +1,27 @@
-use crate::{DynSet, sha256_utils, sha256_utils::Sha256, sig_set::{
-    heuristic_set::HeurSet, sha_set::ShaSet, signature::SigHeur, HeurSigHeader,
-    SerializedSetHeader, ShaSigHeader, SigHeader, SigSet,
-}, SigSetError};
-use sha3::Digest;
+use crate::{
+    sha256_utils,
+    sha256_utils::Sha256,
+    sig_set::{
+        heuristic_set::HeurSet,
+        sha_set::ShaSet,
+        signature::{SigDyn, SigHeur},
+        DynSigHeader, HeurSigHeader, SetHeader, ShaSigHeader, SigHeader, SigSet,
+    },
+    DynSet, SigSetError,
+};
+use sha2::Digest;
 use std::{io::Read, mem::size_of};
-use crate::sig_set::DynSigHeader;
-use crate::sig_set::signature::SigDyn;
 
 #[derive(Debug)]
 pub(crate) struct SigSetDeserializer {
-    ser_set_header: SerializedSetHeader,
+    ser_set_header: SetHeader,
     data: Vec<u8>,
 }
 
 impl SigSetDeserializer {
     const MAX_BUF_LEN: u64 = 0x400000;
     // 4 MB
-    const HEADER_SIZE: usize = size_of::<SerializedSetHeader>();
+    const HEADER_SIZE: usize = size_of::<SetHeader>();
 
     pub fn new(name: &str) -> Result<Self, SigSetError> {
         let mut file = std::fs::File::open(name)?;
@@ -40,7 +45,7 @@ impl SigSetDeserializer {
                 size: data.len() as u64,
             });
         }
-        let set_header: SerializedSetHeader = bincode::serde::decode_from_slice(
+        let set_header: SetHeader = bincode::serde::decode_from_slice(
             &data[..Self::HEADER_SIZE],
             bincode::config::legacy(),
         )?
@@ -59,7 +64,7 @@ impl SigSetDeserializer {
     }
 
     fn verify_checksum(&self) -> Result<(), SigSetError> {
-        let mut hasher = sha3::Sha3_256::new();
+        let mut hasher = sha2::Sha256::new();
         hasher.update(&self.ser_set_header.elem_count.to_le_bytes());
         hasher.update(&self.data);
         let mut checksum_buf = Sha256::default();
@@ -136,7 +141,7 @@ impl SigSetDeserializer {
                 imports_vec.push(import);
                 curr_offset += size_of::<Sha256>();
             }
-            log::debug!("imports: {:?}", imports_vec);
+            //log::debug!("imports: {:?}", imports_vec);
 
             let sig_heur: SigHeur = serde_yaml::from_slice(&self.data[curr_offset..end_offset])?;
             log::info!("Properties: {:?}", sig_heur);
@@ -168,7 +173,7 @@ impl SigSetDeserializer {
                 &self.data[curr_header_offset..],
                 bincode::config::legacy(),
             )?
-                .0;
+            .0;
             let sig_header: DynSigHeader = sig_header.into();
 
             log::debug!("sig_header: {:?}", sig_header);
@@ -192,7 +197,7 @@ impl SigSetDeserializer {
                 &self.data[start_offset..],
                 bincode::config::standard(),
             )?
-                .0;
+            .0;
             log::debug!("imports_count: {:?}", imports_count);
 
             curr_offset += size_of::<u32>();
@@ -204,11 +209,11 @@ impl SigSetDeserializer {
                     &self.data[curr_offset..],
                     bincode::config::legacy(),
                 )?
-                    .0;
+                .0;
                 imports_vec.push(import);
                 curr_offset += size_of::<Sha256>();
             }
-            log::debug!("imports: {:?}", imports_vec);
+            //log::debug!("imports: {:?}", imports_vec);
 
             let sig_dyn: SigDyn = serde_yaml::from_slice(&self.data[curr_offset..end_offset])?;
             log::info!("Properties: {:?}", sig_dyn);

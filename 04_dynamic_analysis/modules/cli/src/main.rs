@@ -1,8 +1,7 @@
 use clap::{error::ErrorKind, CommandFactory, Parser, Subcommand};
 use std::{env, ffi::OsString};
 
-use signatures::sig_set::{heuristic_set::HeurSet, sha_set::ShaSet, SigSet};
-use signatures::sig_set::dynamic_set::DynSet;
+use signatures::sig_set::{dynamic_set::DynSet, heuristic_set::HeurSet, sha_set::ShaSet, SigSet};
 
 #[derive(clap::Args)]
 pub struct CompileRaw {

@@ -20,4 +20,4 @@ TODO Description
 ###### cargo run -- evaluate -i malset.hset maldir
 ###### cargo run -- evaluate -s malset.sset -i malset.hset maldir
 
-###### cargo run -- sandbox -d malset.dset maldir/Watacat.exe
+###### cargo run -- sandbox -d malset.dset .\maldir\Wacatac_dynamic_detection.exe

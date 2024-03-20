@@ -6,11 +6,10 @@ pub mod sig_set;
 
 use crate::{
     error::SigSetError,
-    sig_set::{sha_set::ShaSet, SigSet},
+    sig_set::{dynamic_set::DynSet, sha_set::ShaSet, SigSet},
 };
 pub use sha256_utils::sha256_from_file_pointer;
 use sig_set::sigset_deserializer::SigSetDeserializer;
-use crate::sig_set::dynamic_set::DynSet;
 
 pub fn deserialize_set_from_path(set_path: &str) -> Result<Box<dyn SigSet>, SigSetError> {
     let des = SigSetDeserializer::new(set_path)?;

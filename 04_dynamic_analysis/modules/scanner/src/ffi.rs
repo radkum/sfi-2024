@@ -1,16 +1,14 @@
 use std::{collections::VecDeque, fs::File, path::PathBuf};
 
+use crate::{api_calls::eval_api_calls, error::ScanError, scan::scan_files};
 use common::redr;
 use signatures::sig_set::SigSet;
-use crate::api_calls::eval_api_calls;
-use crate::error::ScanError;
-use crate::scan::scan_files;
 
 pub fn scan_path(
     target_path: &str,
     sha_sig_path: Option<String>,
     heur_sig_path: Option<String>,
-) -> Result<(), ScanError>{
+) -> Result<(), ScanError> {
     let mut signatures_vec = vec![];
     if let Some(sha_sig_path) = sha_sig_path {
         let signatures = signatures::deserialize_set_from_path(sha_sig_path.as_str())?;
