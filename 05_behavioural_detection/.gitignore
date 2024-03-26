@@ -1,0 +1,16 @@
+/.idea/
+
+/common/.idea/
+/common/Cargo.lock
+/common/target/
+
+/bedet-um/.idea/
+/bedet-um/Cargo.lock
+/bedet-um/target/
+
+/bedet-km/.idea/
+/bedet-km/Cargo.lock
+/bedet-km/target/
+/bedet-km/DriverCertificate.cer
+
+/output/
