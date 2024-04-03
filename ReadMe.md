@@ -1,7 +1,6 @@
 # SFI 19 - example of basic detection technics
 
-
-###Structure
+### Directory Structure
 **01-static_analysis** - module for sha based detection
 
 **02-static_analysis-heuristics** - module for heuristic based detection
