@@ -1,4 +1,4 @@
-use crate::{sha256_utils::Sha256, SigSetError};
+use crate::{sha256_utils::Sha256Buff, SigSetError};
 use common::redr;
 use serde::Deserialize;
 
@@ -13,17 +13,18 @@ use crate::sig_set::{
 };
 use common::detection::DetectionReport;
 use serde::Serialize;
+use crate::sig_set::signature::{SigId, SigTrait};
 
 pub(crate) type Description = String;
 
 #[derive(Debug, Serialize, Deserialize)]
-struct SetHeader {
+struct SigSetHeader {
     magic: u32,
-    checksum: Sha256,
+    checksum: Sha256Buff,
     elem_count: u32,
 }
 
-impl SetHeader {
+impl SigSetHeader {
     const MAGIC_LIST: [u32; 2] = [ShaSet::SET_MAGIC_U32, HeurSet::SET_MAGIC_U32];
     fn verify_magic(&self) -> Result<(), SigSetError> {
         if !Self::MAGIC_LIST.contains(&self.magic) {
@@ -35,56 +36,43 @@ impl SetHeader {
     }
 }
 
-pub(crate) type SigId = [u8; 32];
+pub trait SigSetTrait {
+    type Sig: SigTrait;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub(crate) struct SigHeader {
-    id: SigId,
-    size: u32,
-    offset: u32,
-}
+    fn append_signature(&mut self, id: SigId, signature: Self::Sig);
 
-pub(crate) type ShaSigHeader = SigHeader;
-
-#[derive(Debug)]
-struct HeurSigHeader {
-    id: u32,
-    size: u32,
-    offset: u32,
-}
-
-impl From<SigHeader> for HeurSigHeader {
-    fn from(header: SigHeader) -> Self {
-        Self {
-            id: u32::from_le_bytes(header.id[0..4].try_into().unwrap()),
-            size: header.size,
-            offset: header.offset,
-        }
-    }
-}
-
-// #[derive(Debug, Serialize, Deserialize)]
-// struct SignatureHeader {
-//     id: [u8;32],
-//     size: u32,
-//     offset: u32,
-// }
-
-#[derive(Debug, Serialize, Deserialize)]
-struct Signature {
-    header: SigHeader,
-    data: Vec<u8>,
-}
-
-pub trait SigSet {
-    //fn append_signature(&mut self, sha: SigIdType, desc: Description);
     fn eval_file(
         &self,
         file: &mut redr::FileReader,
     ) -> Result<Option<DetectionReport>, SigSetError>;
-    fn from_signatures(path_to_dir: &str) -> Result<Self, SigSetError>
-    where
-        Self: Sized;
+
+    fn new_empty() -> Self
+        where
+            Self: Sized;
+
+    fn from_signatures(path_to_dir: &str) -> Result<Self, SigSetError> {
+        let paths = std::fs::read_dir(path_to_dir)?;
+        let mut sig_set = Self::new_empty();
+
+        let mut sig_id = 0;
+        for entry_res in paths {
+            let entry = entry_res?;
+            //log::trace!("path: {:?}", &path);
+            if entry.file_type()?.is_file() {
+                let mut f = std::fs::File::open(entry.path())?;
+                let sig: Self::Sig = serde_yaml::from_reader(&f).unwrap();
+                log::info!("Properties: {:?}", properties);
+
+                sig_set.append_signature(sig_id, sig);
+                sig_id += 1;
+            }
+        }
+
+        log::info!("heurset size: {}", sig_id);
+        Ok(sig_set)
+    }
 
     fn to_set_serializer(&self) -> SigSetSerializer;
+
+
 }

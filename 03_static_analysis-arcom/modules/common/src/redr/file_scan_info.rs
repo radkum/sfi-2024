@@ -22,7 +22,8 @@ impl FileScanInfo {
                 let path: String = file.borrow().canonical_path.clone();
 
                 format!(
-                    "\"{name}\" -> Malicious {{ path: \"{path}\", desc: {}, cause: {} }}",
+                    //"\"{name}\" -> Malicious {{ path: \"{path}\", desc: \"{}\", cause: {} }}",
+                    "\"{name}\" -> Malicious {{ desc: \"{}\", cause: {} }}",
                     detection_info.desc, detection_info.cause
                 )
             },
@@ -40,12 +41,11 @@ impl FileScanInfo {
                     .unwrap_or("UNKNOWN".to_string());
 
                 let cause = format!(
-                    "EmbeddedFile: {{ name: {name}, desc: {}, cause: {} }}",
+                    "EmbeddedFile: {{ name: {name}, desc: \"{}\", cause: {} }}",
                     detection_info.desc, detection_info.cause
                 );
                 format!(
-                    "\"{original_name}\" -> Malicious {{ sha256: \"{sha256}\", path: \"{path}\", \
-                     cause: {cause} }}"
+                    "\"{original_name}\" -> Malicious {{ cause: {cause} }}"
                 )
             },
         }
@@ -60,6 +60,23 @@ impl FileScanInfo {
             } => original_file.clone(),
         }
     }
+
+    pub fn get_name(&self) -> String {
+        match self {
+            FileScanInfo::RealFile(file) => {
+                let name: String = file.borrow().name.clone();
+                name.to_string()
+            },
+            FileScanInfo::EmbeddedFile {
+                original_file: file,
+                name,
+            } => {
+                let original_name: String = file.borrow().name.clone();
+                name.to_string()
+            },
+        }
+    }
+
 
     pub fn set_sha(&mut self, sha: String) {
         if let FileScanInfo::RealFile(rc) = self {

@@ -1,15 +1,17 @@
 use crate::{
-    sha256_utils::Sha256,
-    sig_set::{SetHeader, SigHeader, SigId},
+    sha256_utils::Sha256Buff,
+    sig_set::{SetHeader, SerSigHeader, SigId},
     SigSetError,
 };
 use sha2::Digest;
 use std::io::Write;
+use crate::sig_set::signature::{SerSigHeader, SigId};
+use crate::sig_set::SigSetHeader;
 
 pub struct SigSetSerializer {
-    sig_headers_vec: Vec<SigHeader>,
+    sig_headers_vec: Vec<SerSigHeader>,
     curr_offset: u32,
-    descriptions: Vec<u8>,
+    signatures: Vec<u8>,
 }
 
 impl SigSetSerializer {
@@ -17,38 +19,30 @@ impl SigSetSerializer {
         Self {
             sig_headers_vec: Vec::new(),
             curr_offset: 0,
-            descriptions: Vec::new(),
+            signatures: Vec::new(),
         }
     }
 }
 
 impl SigSetSerializer {
     pub(crate) fn serialize_signature(&mut self, id: SigId, mut data: Vec<u8>) {
-        self.sig_headers_vec.push(SigHeader {
+        self.sig_headers_vec.push(SerSigHeader {
             id,
             size: data.len() as u32,
             offset: self.curr_offset,
         });
 
-        self.descriptions.append(&mut data);
-        self.curr_offset = self.descriptions.len() as u32;
+        self.signatures.append(&mut data);
+        self.curr_offset = self.signatures.len() as u32;
     }
-
-    // fn serialize_shaset(&self, set_name: &str) -> Result<(), SigSetError> {
-    //     self.serialize(set_name, ShaSet::SET_MAGIC_U32)
-    // }
-    //
-    // fn serialize_heurset(&self, set_name: &str) -> Result<(), SigSetError> {
-    //     self.serialize(set_name, HeurSet::SET_MAGIC_U32)
-    // }
 
     pub fn serialize(&self, set_name: &str, magic: u32) -> Result<usize, SigSetError> {
         let mut file = std::fs::File::create(set_name)?;
 
-        let mut checksum_buf = Sha256::default();
+        let mut checksum_buf = Sha256Buff::default();
         checksum_buf.copy_from_slice(&self.calculate_checksum()?);
 
-        let set_header = SetHeader {
+        let set_header = SigSetHeader {
             magic,
             checksum: checksum_buf,
             elem_count: self.sig_headers_vec.len() as u32,
@@ -58,17 +52,17 @@ impl SigSetSerializer {
         file.write_all(&header)?;
 
         //write info about each sig
-        for header in &self.sig_headers_vec {
-            let data = bincode::serde::encode_to_vec(&header, bincode::config::legacy())?;
+        for sig_header in &self.sig_headers_vec {
+            let data = bincode::serde::encode_to_vec(&sig_header, bincode::config::legacy())?;
             file.write_all(&data)?;
         }
 
-        //write descriptions to file
-        file.write_all(&self.descriptions)?;
+        //write signatures to file
+        file.write_all(&self.signatures)?;
         Ok(self.sig_headers_vec.len())
     }
 
-    fn calculate_checksum(&self) -> Result<Sha256, SigSetError> {
+    fn calculate_checksum(&self) -> Result<Sha256Buff, SigSetError> {
         let mut hasher = sha2::Sha256::new();
 
         hasher.update(&(self.sig_headers_vec.len() as u32).to_le_bytes());
@@ -80,7 +74,7 @@ impl SigSetSerializer {
             )?);
         }
 
-        hasher.update(&self.descriptions);
+        hasher.update(&self.signatures);
         Ok(hasher.finalize().into())
     }
 }

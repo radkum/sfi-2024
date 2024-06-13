@@ -2,7 +2,7 @@ use clap::{error::ErrorKind, CommandFactory, Parser, Subcommand};
 use std::{env, ffi::OsString};
 
 use signatures::sig_set::{dynamic_set::DynSet, heuristic_set::HeurSet, sha_set::ShaSet, SigSet};
-
+use ansi_term::Colour::Green;
 #[derive(clap::Args)]
 pub struct CompileRaw {
     /// Malware dir
@@ -97,7 +97,7 @@ pub fn main() -> anyhow::Result<()> {
         args.push(OsString::from("--help"));
     }
     let args = Cli::parse_from(args);
-
+    let _ = ansi_term::enable_ansi_support();
     let log_level = match args.log_level {
         0 => log::LevelFilter::Off,
         1 => log::LevelFilter::Error,
@@ -130,7 +130,7 @@ pub fn main() -> anyhow::Result<()> {
                 };
 
                 match ser.serialize(&args.out_path, magic) {
-                    Ok(number) => println!("SUCCESS to compile set. Count: {number}"),
+                    Ok(number) => println!("{} Compiled signatures: {number}", Green.paint("SUCCESS!")),
                     Err(e) => log::error!("Failed to compile sigs. Err: {e}"),
                 }
             },
@@ -181,7 +181,8 @@ pub fn main() -> anyhow::Result<()> {
             file_path,
         } => {
             let v = sandbox::sandbox_path(file_path.as_str())?;
-            scanner::scan_api_calls(v, dyn_sig_path)?
+            let file_name = file_path.split("\\").collect::<Vec<_>>().pop();
+            scanner::scan_api_calls(v, dyn_sig_path, file_name.unwrap_or_default().to_string())?
         },
     }
 

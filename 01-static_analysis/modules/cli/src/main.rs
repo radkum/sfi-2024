@@ -4,7 +4,7 @@ use clap::{error::ErrorKind, CommandFactory, Parser, Subcommand};
 use std::{env, ffi::OsString};
 
 use signatures::sig_set::{sha_set::ShaSet, SigSet};
-
+use ansi_term::Colour::Green;
 #[derive(clap::Args)]
 pub struct CompileRaw {
     /// Malware dir
@@ -78,7 +78,7 @@ pub fn main() -> anyhow::Result<()> {
         args.push(OsString::from("--help"));
     }
     let args = Cli::parse_from(args);
-
+    let _ = ansi_term::enable_ansi_support();
     let log_level = match args.log_level {
         0 => log::LevelFilter::Off,
         1 => log::LevelFilter::Error,
@@ -97,7 +97,7 @@ pub fn main() -> anyhow::Result<()> {
                 let ser = set.to_set_serializer();
 
                 match ser.serialize_sha_set(&args.out_path) {
-                    Ok(number) => println!("SUCCESS to compile set. Count: {number}"),
+                    Ok(number) => println!("{} Compiled signatures: {number}", Green.paint("SUCCESS!")),
                     Err(e) => log::error!("Failed to compile sigs. Err: {e}"),
                 }
             },

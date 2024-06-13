@@ -4,9 +4,9 @@ use crate::SigSetError;
 use sha2::Digest;
 
 const SHA256_LEN: usize = 32;
-pub type Sha256 = [u8; SHA256_LEN];
+pub type Sha256Buff = [u8; SHA256_LEN];
 
-pub fn sha256_from_file_pointer(file: &mut impl io::Read) -> Result<Sha256, io::Error> {
+pub fn sha256_from_file_pointer(file: &mut impl io::Read) -> Result<Sha256Buff, io::Error> {
     // Create a SHA-256 "hasher"
     let mut hasher = sha2::Sha256::new();
 
@@ -20,39 +20,39 @@ pub fn sha256_from_file_pointer(file: &mut impl io::Read) -> Result<Sha256, io::
         hasher.update(&buffer[..bytes_read]);
     }
 
-    let mut checksum_buf = Sha256::default();
+    let mut checksum_buf = Sha256Buff::default();
     checksum_buf.copy_from_slice(&hasher.finalize()[..]);
     Ok(checksum_buf)
 }
 
-pub fn sha256_from_vec(v: Vec<u8>) -> Result<Sha256, io::Error> {
+pub fn sha256_from_vec(v: Vec<u8>) -> Result<Sha256Buff, io::Error> {
     let mut hasher = sha2::Sha256::new();
     hasher.update(v);
 
-    let mut checksum_buf = Sha256::default();
+    let mut checksum_buf = Sha256Buff::default();
     checksum_buf.copy_from_slice(&hasher.finalize()[..]);
     Ok(checksum_buf)
 }
 
-pub fn sha256_from_vec_of_vec(vec: Vec<Vec<u8>>) -> Result<Sha256, io::Error> {
+pub fn sha256_from_vec_of_vec(vec: Vec<Vec<u8>>) -> Result<Sha256Buff, io::Error> {
     let mut hasher = sha2::Sha256::new();
 
     for v in vec {
         hasher.update(v);
     }
 
-    let mut checksum_buf = Sha256::default();
+    let mut checksum_buf = Sha256Buff::default();
     checksum_buf.copy_from_slice(&hasher.finalize()[..]);
     Ok(checksum_buf)
 }
 
-pub fn sha256_from_path(file_path: &str) -> Result<Sha256, io::Error> {
+pub fn sha256_from_path(file_path: &str) -> Result<Sha256Buff, io::Error> {
     let mut file = std::fs::File::open(file_path)?;
     sha256_from_file_pointer(&mut file)
 }
 
-pub fn convert_string_to_sha256(s: &str) -> Result<Sha256, SigSetError> {
-    let mut sha = Sha256::default();
+pub fn convert_string_to_sha256(s: &str) -> Result<Sha256Buff, SigSetError> {
+    let mut sha = Sha256Buff::default();
     let v = hex::decode(s)?;
 
     if v.len() != SHA256_LEN {
@@ -65,6 +65,6 @@ pub fn convert_string_to_sha256(s: &str) -> Result<Sha256, SigSetError> {
     Ok(sha)
 }
 
-pub fn convert_sha256_to_string(sha: &Sha256) -> Result<String, SigSetError> {
+pub fn convert_sha256_to_string(sha: &Sha256Buff) -> Result<String, SigSetError> {
     Ok(hex::encode_upper(sha))
 }

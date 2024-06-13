@@ -13,3 +13,4 @@ signatures = { path = "../signatures" }
 log = "~0"
 sha2 = "~0"
 thiserror = "~1"
+ansi_term = "~0"

@@ -41,10 +41,11 @@ pub fn scan_path(
 pub fn scan_api_calls(
     calls: Vec<String>, //vec string should be replaced with some ffi struct
     sha_sig_path: String,
+    file_name: String,
 ) -> Result<(), ScanError> {
     let signatures = signatures::deserialize_dyn_set_from_path(sha_sig_path.as_str())?;
 
-    eval_api_calls(calls, signatures)?;
+    eval_api_calls(calls, signatures, file_name)?;
     Ok(())
 }
 

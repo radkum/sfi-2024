@@ -1,8 +1,8 @@
 use crate::{
     sha256_utils,
-    sha256_utils::{sha256_from_vec_of_vec, Sha256},
+    sha256_utils::{sha256_from_vec_of_vec, Sha256Buff},
     sig_set::{
-        signature::SigHeur, sigset_serializer::SigSetSerializer, Description, SigId, SigSet,
+        signature::SigHeur, sigset_serializer::SigSetSerializer, Description, SigId, SigSetTrait,
     },
     SigSetError,
 };
@@ -12,16 +12,18 @@ use std::{
     collections::{BTreeMap, HashMap},
     io::{Read, Seek, SeekFrom},
 };
+use crate::sig_set::signature::{SigBase, SigHeurSerialized};
+use crate::sig_set::signature::heuristic_sig::SigHeur;
 
 type HeurSigId = u32;
 type ImportInSigs = u32;
 
 pub struct HeurSet {
     import_count: u32,
-    sha_to_import_index: BTreeMap<Sha256, u32>,
+    sha_to_import_index: BTreeMap<Sha256Buff, u32>,
     imports_in_sig: Vec<ImportInSigs>,
     sig_id_to_description: HashMap<HeurSigId, Description>,
-    sig_id_to_imports: HashMap<HeurSigId, Vec<Sha256>>,
+    sig_id_to_imports: HashMap<HeurSigId, Vec<Sha256Buff>>,
 }
 
 impl HeurSet {
@@ -40,7 +42,7 @@ impl HeurSet {
         }
     }
 
-    fn match_(&self, sha_vec: &Vec<Sha256>) -> Result<Option<SigHeur>, SigSetError> {
+    fn match_(&self, sha_vec: &Vec<Sha256Buff>) -> Result<Option<SigHeur>, SigSetError> {
         //--------------ALGORITHM------------------
         // matching sha_vec with each signature has very low efficacy. There is better way
         // imports_in_sig field tell as which signatures has particular import. For example:
@@ -101,46 +103,22 @@ impl HeurSet {
         log::trace!("matched_sig {} id", matched_sig);
         log::trace!("matched_sig {:?} id", self.sig_id_to_description);
 
-        let properties: SigHeur = serde_yaml::from_str(&self.sig_id_to_description[&matched_sig])?;
+        let properties: SigHeur = serde_yaml::from_str(&self.sig_id_to_description[&matched_sig]).unwrap();
         return Ok(Some(properties));
-    }
-
-    pub(crate) fn append_signature(
-        &mut self,
-        imports: Vec<Sha256>,
-        sig_id: HeurSigId,
-        desc: Description,
-    ) {
-        self.sig_id_to_imports.insert(sig_id, imports.clone());
-
-        for sha in imports {
-            let import_mask = 1 << sig_id;
-            if !self.sha_to_import_index.contains_key(&sha) {
-                log::trace!("{}", self.import_count);
-                self.sha_to_import_index.insert(sha, self.import_count);
-                self.imports_in_sig.push(import_mask);
-                self.import_count += 1;
-            } else {
-                let import_id = self.sha_to_import_index.get_mut(&sha).unwrap();
-                let import_ids = self.imports_in_sig.get_mut(*import_id as usize).unwrap();
-                *import_ids |= import_mask;
-            }
-        }
-        self.sig_id_to_description.insert(sig_id, desc);
     }
 }
 
-fn get_characteristics(reader: &mut redr::FileReader) -> Result<Vec<Sha256>, SigSetError> {
+fn get_characteristics(reader: &mut redr::FileReader) -> Result<Vec<Sha256Buff>, SigSetError> {
     let mut buffer = Vec::new();
     let _binary_data = reader.read_to_end(&mut buffer)?;
     let file = object::File::parse(&*buffer)?;
     get_imports(file.imports()?)
 }
 
-fn get_imports(imports: Vec<Import>) -> Result<Vec<Sha256>, SigSetError> {
+fn get_imports(imports: Vec<Import>) -> Result<Vec<Sha256Buff>, SigSetError> {
     const DELIMITER: u8 = b'+';
 
-    fn import_to_sha(import: &Import) -> Result<Sha256, SigSetError> {
+    fn import_to_sha(import: &Import) -> Result<Sha256Buff, SigSetError> {
         #[cfg(debug_assertions)]
         log::debug!(
             "import: \"{}{}{}\"",
@@ -163,7 +141,40 @@ fn get_imports(imports: Vec<Import>) -> Result<Vec<Sha256>, SigSetError> {
     imports.iter().map(|i| import_to_sha(i)).collect()
 }
 
-impl SigSet for HeurSet {
+impl SigSetTrait for HeurSet {
+    type Sig = SigHeur;
+
+    fn append_signature(
+        &mut self,
+        sig_id: SigId,
+        sig: Self::Sig,
+    ) {
+        let imports = sig
+            .imports
+            .iter()
+            .map(|s| {
+                sha256_utils::sha256_from_vec(s.to_lowercase().as_bytes().to_vec()).unwrap()
+            })
+            .collect();
+
+        self.sig_id_to_imports.insert(sig_id, imports.clone());
+
+        for sha in imports {
+            let import_mask = 1 << sig_id;
+            if !self.sha_to_import_index.contains_key(&sha) {
+                log::trace!("{}", self.import_count);
+                self.sha_to_import_index.insert(sha, self.import_count);
+                self.imports_in_sig.push(import_mask);
+                self.import_count += 1;
+            } else {
+                let import_id = self.sha_to_import_index.get_mut(&sha).unwrap();
+                let import_ids = self.imports_in_sig.get_mut(*import_id as usize).unwrap();
+                *import_ids |= import_mask;
+            }
+        }
+        self.sig_id_to_description.insert(sig_id, serde_yaml::to_string(&sig).unwrap());
+    }
+
     fn eval_file(
         &self,
         file: &mut redr::FileReader,
@@ -180,40 +191,14 @@ impl SigSet for HeurSet {
         Ok(desc_and_info)
     }
 
-    fn from_signatures(path_to_dir: &str) -> Result<Self, SigSetError> {
-        let paths = std::fs::read_dir(path_to_dir)?;
-        let mut heurset = HeurSet::new_empty();
-
-        let mut sig_id = 0;
-        for entry_res in paths {
-            let entry = entry_res?;
-            //log::trace!("path: {:?}", &path);
-            if entry.file_type()?.is_file() {
-                let mut f = std::fs::File::open(entry.path())?;
-                let properties: SigHeur = serde_yaml::from_reader(&f)?;
-                log::info!("Properties: {:?}", properties);
-
-                // let imports_str = properties.get(HeurSet::PROPERTY_IMPORTS).ok_or(
-                //     SigSetError::NoSuchPropertyError(HeurSet::PROPERTY_IMPORTS.into()),
-                // )?;
-
-                let imports = properties
-                    .imports
-                    .iter()
-                    .map(|s| {
-                        sha256_utils::sha256_from_vec(s.to_lowercase().as_bytes().to_vec()).unwrap()
-                    })
-                    .collect();
-                f.seek(SeekFrom::Start(0))?;
-                let mut data = Vec::new();
-                f.read_to_end(&mut data)?;
-                heurset.append_signature(imports, sig_id, String::from_utf8_lossy(&data).into());
-                sig_id += 1;
-            }
+    fn new_empty() ->Self where Self: Sized {
+        Self {
+            import_count: 0,
+            sha_to_import_index: Default::default(),
+            imports_in_sig: vec![],
+            sig_id_to_description: Default::default(),
+            sig_id_to_imports: Default::default()
         }
-
-        log::info!("heurset size: {}", sig_id);
-        Ok(heurset)
     }
 
     fn to_set_serializer(&self) -> SigSetSerializer {

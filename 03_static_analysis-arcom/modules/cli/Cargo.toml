@@ -1,5 +1,5 @@
 [package]
-name = "cli"
+name = "static-analysis-v3"
 version = "0.1.0"
 edition = "2021"
 description = "Command line interface of REDR"

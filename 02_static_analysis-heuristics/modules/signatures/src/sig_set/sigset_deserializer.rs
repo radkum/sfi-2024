@@ -1,25 +1,27 @@
 use crate::{
-    sha256_utils,
-    sha256_utils::Sha256,
+    sha256_utils::Sha256Buff,
     sig_set::{
-        heuristic_set::HeurSet, sha_set::ShaSet, signature::SigHeur, HeurSigHeader, SetHeader,
-        ShaSigHeader, SigHeader, SigSet,
+        heuristic_set::HeurSet, sha_set::ShaSet, HeurSigHeader, SetHeader,
+        ShaSigHeader, SerSigHeader, SigSetTrait,
     },
     SigSetError,
 };
 use sha2::Digest;
 use std::{io::Read, mem::size_of};
+use crate::sig_set::signature::{SerSigHeader, SigHeurSerialized, SigSha256, SigTrait};
+use crate::sig_set::signature::sig_deserializer::SigDeserializer;
+use crate::sig_set::SigSetHeader;
 
 #[derive(Debug)]
 pub(crate) struct SigSetDeserializer {
-    ser_set_header: SetHeader,
+    ser_set_header: SigSetHeader,
     data: Vec<u8>,
 }
 
 impl SigSetDeserializer {
     const MAX_BUF_LEN: u64 = 0x400000;
     // 4 MB
-    const HEADER_SIZE: usize = size_of::<SetHeader>();
+    const HEADER_SIZE: usize = size_of::<SigSetHeader>();
 
     pub fn new(name: &str) -> Result<Self, SigSetError> {
         let mut file = std::fs::File::open(name)?;
@@ -65,7 +67,7 @@ impl SigSetDeserializer {
         let mut hasher = sha2::Sha256::new();
         hasher.update(&self.ser_set_header.elem_count.to_le_bytes());
         hasher.update(&self.data);
-        let mut checksum_buf = Sha256::default();
+        let mut checksum_buf = Sha256Buff::default();
         checksum_buf.copy_from_slice(&hasher.finalize()[..]);
         if self.ser_set_header.checksum != checksum_buf {
             return Err(SigSetError::IncorrectChecksumError {
@@ -76,31 +78,30 @@ impl SigSetDeserializer {
         Ok(())
     }
 
-    pub fn get_set(&self) -> Result<Box<dyn SigSet>, SigSetError> {
+    pub fn get_set_box(&self) -> Result<Box<dyn SigSetTrait>, SigSetError> {
         match self.ser_set_header.magic {
-            HeurSet::SET_MAGIC_U32 => Ok(Box::new(self.get_heur_set()?)),
-            ShaSet::SET_MAGIC_U32 => Ok(Box::new(self.get_sha_set()?)),
+            HeurSet::SET_MAGIC_U32 => Ok(Box::new(self.get_set::<HeurSet>()?)),
+            ShaSet::SET_MAGIC_U32 => Ok(Box::new(self.get_set::<ShaSet>()?)),
             _ => Err(SigSetError::IncorrectMagicError {
                 current: String::from_utf8_lossy(&self.ser_set_header.magic.to_le_bytes()).into(),
             }),
         }
     }
 
-    fn get_heur_set(&self) -> Result<HeurSet, SigSetError> {
+    fn get_set<SigSet: SigSetTrait>(&self) -> Result<SigSet, SigSetError> {
         let elem_count = self.ser_set_header.elem_count as usize;
-        let signature_header_size = size_of::<SigHeader>();
+        let signature_header_size = size_of::<SerSigHeader>();
         let start_of_data = elem_count * signature_header_size;
 
-        let mut heurset = HeurSet::new_empty();
+        let mut signature_set = SigSet::new_empty();
         for i in 0..elem_count {
             let curr_header_offset = i * signature_header_size;
 
-            let sig_header: SigHeader = bincode::serde::decode_from_slice(
+            let sig_header: SerSigHeader = bincode::serde::decode_from_slice(
                 &self.data[curr_header_offset..],
                 bincode::config::legacy(),
             )?
-            .0;
-            let sig_header: HeurSigHeader = sig_header.into();
+                .0;
 
             log::debug!("sig_header: {:?}", sig_header);
 
@@ -112,87 +113,18 @@ impl SigSetDeserializer {
 
             let start_offset = sig_header.offset as usize + start_of_data;
             let end_offset = start_offset + sig_header.size as usize;
+
             if end_offset > self.data.len() {
                 return Err(SigSetError::IncorrectSignatureSizeError {
                     size: sig_header.size,
                 });
             }
 
-            let mut curr_offset = start_offset;
-            let imports_count: u32 = bincode::serde::decode_from_slice(
-                &self.data[start_offset..],
-                bincode::config::standard(),
-            )?
-            .0;
-            log::debug!("imports_count: {:?}", imports_count);
+            let signature = SigSet::Sig::deserialize_vec(self.data[start_offset..end_offset].to_vec())?;
 
-            curr_offset += size_of::<u32>();
-
-            let mut imports_vec = vec![];
-            //let signature_data = self.data[curr_offset..];
-            for _i in 0..imports_count {
-                let import: Sha256 = bincode::serde::decode_from_slice(
-                    &self.data[curr_offset..],
-                    bincode::config::legacy(),
-                )?
-                .0;
-                imports_vec.push(import);
-                curr_offset += size_of::<Sha256>();
-            }
-            log::debug!("imports: {:?}", imports_vec);
-
-            let sig_heur: SigHeur = serde_yaml::from_slice(&self.data[curr_offset..end_offset])?;
-            log::info!("Properties: {:?}", sig_heur);
-
-            let imports = sig_heur
-                .imports
-                .iter()
-                .map(|s| sha256_utils::sha256_from_vec(s.as_bytes().to_vec()).unwrap())
-                .collect();
-
-            let description = String::from_utf8_lossy(&self.data[curr_offset..end_offset]);
-            heurset.append_signature(imports, sig_header.id, description.into());
+            signature_set.append_signature(sig_header.id, signature);
         }
 
-        Ok(heurset)
-    }
-
-    pub(crate) fn get_sha_set(&self) -> Result<ShaSet, SigSetError> {
-        let elem_count = self.ser_set_header.elem_count as usize;
-        let signature_header_size = size_of::<SigHeader>();
-        let start_of_data = elem_count * signature_header_size;
-
-        let mut sha_set = ShaSet::new_empty();
-        for i in 0..elem_count {
-            let curr_header_offset = i * signature_header_size;
-
-            let sig_header: SigHeader = bincode::serde::decode_from_slice(
-                &self.data[curr_header_offset..],
-                bincode::config::legacy(),
-            )?
-            .0;
-            let sig_header: ShaSigHeader = sig_header.into();
-
-            if sig_header.size > Self::MAX_BUF_LEN as u32 {
-                return Err(SigSetError::IncorrectSignatureSizeError {
-                    size: sig_header.size,
-                });
-            }
-
-            let start_offset = sig_header.offset as usize + start_of_data;
-            let end_offset = start_offset + sig_header.size as usize;
-            if end_offset > self.data.len() {
-                return Err(SigSetError::IncorrectSignatureSizeError {
-                    size: sig_header.size,
-                });
-            }
-
-            let signature_data = self.data[start_offset..end_offset].to_vec();
-            let description = String::from_utf8_lossy(&signature_data);
-
-            sha_set.append_signature(sig_header.id, description.into());
-        }
-
-        Ok(sha_set)
+        Ok(signature_set)
     }
 }

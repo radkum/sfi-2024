@@ -1,7 +1,7 @@
 use std::{collections::VecDeque, fs::File, path::PathBuf};
 
 use common::redr;
-use signatures::sig_set::SigSet;
+use signatures::sig_set::SigSetTrait;
 
 pub(super) fn scan_path(
     target_path: &str,
@@ -37,7 +37,7 @@ pub(super) fn scan_path(
     Ok(())
 }
 
-fn scan_file(file_path: &str, signatures: Vec<Box<dyn SigSet>>) -> anyhow::Result<()> {
+fn scan_file(file_path: &str, signatures: Vec<Box<dyn SigSetTrait>>) -> anyhow::Result<()> {
     log::debug!("scan_file: {}", file_path);
     let file = File::open(file_path)?;
     let file_info = redr::FileInfo::new(PathBuf::from(file_path));
@@ -49,7 +49,7 @@ fn scan_file(file_path: &str, signatures: Vec<Box<dyn SigSet>>) -> anyhow::Resul
     Ok(())
 }
 
-fn scan_dir(dir_path: &str, signatures: Vec<Box<dyn SigSet>>) -> anyhow::Result<()> {
+fn scan_dir(dir_path: &str, signatures: Vec<Box<dyn SigSetTrait>>) -> anyhow::Result<()> {
     log::debug!("scan_dir: {}", dir_path);
 
     let mut queue = VecDeque::new();

@@ -1,4 +1,4 @@
-use crate::sha256_utils::{sha256_from_path, Sha256};
+use crate::sha256_utils::{sha256_from_path, Sha256Buff};
 use common::{detection::DetectionReport, redr};
 use serde_yaml;
 use std::{
@@ -10,12 +10,13 @@ use std::{
 use crate::{
     error::SigSetError,
     sha256_utils,
-    sig_set::{signature::SigSha256, sigset_serializer::SigSetSerializer, Description, SigSet},
+    sig_set::{signature::SigSha256, sigset_serializer::SigSetSerializer, Description, SigSetTrait},
 };
+use crate::sig_set::signature::{SigBase, SigId};
 
 pub struct ShaSet {
-    sha_list: BTreeSet<Sha256>,
-    sha_to_description: HashMap<Sha256, Description>,
+    sha_list: BTreeSet<Sha256Buff>,
+    sha_to_description: HashMap<Sha256Buff, Description>,
 }
 
 impl ShaSet {
@@ -33,9 +34,9 @@ impl ShaSet {
         }
     }
 
-    fn match_(&self, sha: &Sha256) -> Result<Option<SigSha256>, SigSetError> {
+    fn match_(&self, sha: &Sha256Buff) -> Result<Option<SigSha256>, SigSetError> {
         if self.sha_list.contains(sha) {
-            let properties: SigSha256 = serde_yaml::from_str(&self.sha_to_description[sha])?;
+            let properties: SigSha256 = serde_yaml::from_str(&self.sha_to_description[sha]).unwrap();
             return Ok(Some(properties));
         }
 
@@ -51,7 +52,8 @@ impl ShaSet {
             //log::trace!("path: {:?}", &path);
             if entry.file_type()?.is_file() {
                 let sha = sha256_from_path(entry.path().into_os_string().into_string()?.as_str())?;
-                sha_set.append_signature(sha, Self::create_file_info(&entry, &sha)?);
+                let sha_sig = SigSha256{ sig_base: SigBase { name: "".to_string(), description: Self::create_file_info(&entry, &sha)? }, sha256: "".to_string() };
+                sha_set.append_signature(sha, sha_sig);
                 log::trace!("path: {:?}", &entry);
             }
         }
@@ -60,7 +62,7 @@ impl ShaSet {
         Ok(sha_set)
     }
 
-    fn create_file_info(path: &DirEntry, sha256: &Sha256) -> Result<String, SigSetError> {
+    fn create_file_info(path: &DirEntry, sha256: &Sha256Buff) -> Result<String, SigSetError> {
         Ok(format!(
             "{}: {}\n{}: {}\n{}: {:?}\n",
             Self::PROPERTY_NAME,
@@ -82,13 +84,17 @@ impl ShaSet {
         Ok(self.sha_to_description.len())
     }
 
-    pub(crate) fn append_signature(&mut self, sig_id: Sha256, desc: Description) {
-        self.sha_list.insert(sig_id);
-        self.sha_to_description.insert(sig_id, desc);
-    }
+
 }
 
-impl SigSet for ShaSet {
+impl SigSetTrait for ShaSet {
+    type Sig = SigSha256;
+
+    fn append_signature(&mut self, sig_id: SigId, sig_sha: Self::Sig) {
+        self.sha_list.insert(sig_id);
+        self.sha_to_description.insert(sig_id, sig_sha.sig_base.description);
+    }
+
     fn eval_file(
         &self,
         file: &mut redr::FileReader,
@@ -100,41 +106,16 @@ impl SigSet for ShaSet {
         Ok(desc_and_info)
     }
 
-    fn from_signatures(path_to_dir: &str) -> Result<Self, SigSetError> {
-        let paths = std::fs::read_dir(path_to_dir)?;
-        let mut sha_set = Self::new_empty();
-
-        for entry_res in paths {
-            let entry = entry_res?;
-            //log::trace!("path: {:?}", &path);
-            if entry.file_type()?.is_file() {
-                let mut f = std::fs::File::open(entry.path())?;
-                let properties: BTreeMap<String, String> = serde_yaml::from_reader(&f)?;
-                log::info!("Properies: {:?}", properties);
-
-                //let name = properties.get(Self::PROPERTY_NAME).ok_or(MsetError::NoSuchPropertyError(PROPERTY_NAME.into()))?;
-                let sha256 = properties.get(Self::PROPERTY_SHA256).ok_or(
-                    SigSetError::NoSuchPropertyError(Self::PROPERTY_SHA256.into()),
-                )?;
-                //let desc = properties.get(Self::PROPERTY_DESC).ok_or(MsetError::NoSuchPropertyError(PROPERTY_DESC.into()))?;
-
-                f.seek(SeekFrom::Start(0))?;
-                let mut data = Vec::new();
-                f.read_to_end(&mut data)?;
-                sha_set.append_signature(
-                    sha256_utils::convert_string_to_sha256(sha256)?,
-                    String::from_utf8_lossy(&data).into(),
-                )
-            }
+    fn new_empty() ->Self where Self: Sized {
+        Self {
+            sha_list: Default::default(),
+            sha_to_description: Default::default()
         }
-
-        log::info!("mset size: {}", sha_set.sha_list.len());
-        Ok(sha_set)
     }
 
     fn to_set_serializer(&self) -> SigSetSerializer {
         let mut ser = SigSetSerializer::new_empty();
-        let sorted_map: BTreeMap<Sha256, Description> =
+        let sorted_map: BTreeMap<Sha256Buff, Description> =
             self.sha_to_description.clone().into_iter().collect();
 
         for (sha, desc) in sorted_map {
