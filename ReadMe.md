@@ -11,8 +11,8 @@
 
 **05-behavioural_detection** - behavioural detection. Minifilter (bedet-km) and matching engine (bedet-um)
 > The `bedet-km` minifilter is an earlier, simplified iteration of the RAMON sensor:
-> [adkum/ramon-rs](https://github.com/radkum/ramon-rs) (2026, AI-assisted) and
-> [adkum/ramon-rs-legacy](https://github.com/radkum/ramon-rs-legacy) (2025, hand-written).
+> [`radkum/ramon-rs`](https://github.com/radkum/ramon-rs) (2026, AI-assisted) and
+> [`radkum/ramon-rs-legacy`](https://github.com/radkum/ramon-rs-legacy) (2025, hand-written).
 
 **Sandbox** - directory with sandboxing library
 
